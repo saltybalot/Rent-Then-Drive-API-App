@@ -34,3 +34,4 @@ def analyze_sentiment():
         sentiment = "Neutral"
 
     print(f"Sentiment: {sentiment}")
+    return {"sentiment": sentiment}

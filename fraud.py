@@ -51,7 +51,7 @@ def fraud_detection():
 
     def ocr_image(image_path):
         # Path to tesseract executable (Only needed on Windows)
-        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+        pytesseract.pytesseract.tesseract_cmd = r'Tesseract-OCR\tesseract.exe'  # Update this path if necessary
 
         # Load the image
         image = cv2.imread(image_path)
@@ -157,8 +157,8 @@ def fraud_detection():
         else:
             is_receipt_edited = 1
 
-    new_rental_df = pd.DataFrame([[extracted_data['total_amount'], 1, 2, 0, is_receipt_edited, 0]],
-        columns=['amount', 'booking_hour', 'lead_time_hours', 'is_gcash_name_match', 'is_receipt_edited', 'customer_history']
+    new_rental_df = pd.DataFrame([[extracted_data['total_amount'], 1, 2, is_receipt_edited, 0]],
+        columns=['amount', 'booking_hour', 'lead_time_hours', 'is_receipt_edited', 'customer_history']
     )
     new_rental_scaled = scaler.transform(new_rental_df)
     prediction = model.predict(new_rental_scaled)

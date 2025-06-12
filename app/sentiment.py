@@ -3,17 +3,23 @@ nltk.download('vader_lexicon')
 
 from nltk.sentiment import SentimentIntensityAnalyzer
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 router = APIRouter()
 
-@router.get("/")
-def analyze_sentiment():
+# Define request body
+class TextInput(BaseModel):
+    text: str
+
+@router.post("/sentiment")
+def analyze_sentiment(text_input: TextInput):
     sia = SentimentIntensityAnalyzer()
+    text = text_input.text
     # Negative sentiment example
     #text = "I-it’s not like I liked using this product or anything... but I guess it did exactly what I needed, so whatever!"
 
     # Positive sentiment example
-    text = "Onii-chan~! This product was super amazing, just like you! It made everything so much easier, and I think you'd love it too, ehehe~!"
+    # text = "Onii-chan~! This product was super amazing, just like you! It made everything so much easier, and I think you'd love it too, ehehe~!"
 
     # Neutral sentiment example
     # text = "This product is okay, I guess. It works as expected, but nothing special."
@@ -34,4 +40,4 @@ def analyze_sentiment():
         sentiment = "Neutral"
 
     print(f"Sentiment: {sentiment}")
-    return {"sentiment": sentiment}
+    return {"compound": compound}

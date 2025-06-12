@@ -2,42 +2,40 @@ import nltk
 nltk.download('vader_lexicon')
 
 from nltk.sentiment import SentimentIntensityAnalyzer
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, Request
+import json
 
 router = APIRouter()
 
-# Define request body
-class TextInput(BaseModel):
-    text: str
-
 @router.post("/")
-def analyze_sentiment(text_input: TextInput):
+async def analyze_sentiment(request: Request):
+    # Read raw body
+    raw_body = await request.body()
+    try:
+        # Decode and parse the stringified JSON
+        decoded = raw_body.decode()
+        parsed = json.loads(decoded)  # handles {"text": "..."} or '"{\"text\": \"...\"}"'
+        
+        # If 'text' is not in parsed, it might still be a stringified object
+        if isinstance(parsed, str):
+            parsed = json.loads(parsed)
+
+        text = parsed.get("text", "")
+    except Exception as e:
+        return {"error": "Invalid input format", "details": str(e)}
+
+    # Sentiment analysis
     sia = SentimentIntensityAnalyzer()
-    text = text_input.text
-    # Negative sentiment example
-    #text = "I-it’s not like I liked using this product or anything... but I guess it did exactly what I needed, so whatever!"
-
-    # Positive sentiment example
-    # text = "Onii-chan~! This product was super amazing, just like you! It made everything so much easier, and I think you'd love it too, ehehe~!"
-
-    # Neutral sentiment example
-    # text = "This product is okay, I guess. It works as expected, but nothing special."
-
-    # Analyze the sentiment of the text
-    print(sia.polarity_scores(text))
-    # Output: {'neg': 0.526, 'neu': 0.474, 'pos': 0.0, 'compound': -0.5719}
-    # The compound score is a normalized score that summarizes the overall sentiment of the text.
-
     score = sia.polarity_scores(text)
-
     compound = score['compound']
-    if compound >= 0.05:
-        sentiment = "Positive"
-    elif compound <= -0.05:
-        sentiment = "Negative"
-    else:
-        sentiment = "Neutral"
 
-    print(f"Sentiment: {sentiment}")
-    return {"compound": compound}
+    sentiment = (
+        "Positive" if compound >= 0.05 else
+        "Negative" if compound <= -0.05 else
+        "Neutral"
+    )
+
+    return {
+        "text": text,
+        "compound": compound,
+    }

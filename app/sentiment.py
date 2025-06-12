@@ -11,7 +11,7 @@ router = APIRouter()
 class TextInput(BaseModel):
     text: str
 
-@router.post("/sentiment")
+@router.post("/")
 def analyze_sentiment(text_input: TextInput):
     sia = SentimentIntensityAnalyzer()
     text = text_input.text

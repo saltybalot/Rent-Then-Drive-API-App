@@ -51,17 +51,23 @@ def base64_encode_key(secret_key):
 
 def ocr_image(image_bytes):
     # Path to tesseract executable (Only needed on Windows)
-    pytesseract.pytesseract.tesseract_cmd = r'Tesseract-OCR\tesseract.exe'  # Update this path if necessary
+    # pytesseract.pytesseract.tesseract_cmd = r'Tesseract-OCR\tesseract.exe'  # Update this path if necessary
+    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract" # For Linux or MacOS, update this path if necessary
 
-    # Convert bytes to numpy array
-    npimg = np.frombuffer(image_bytes, np.uint8)
-    image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+    # Decode image bytes to numpy array
+    image_array = np.frombuffer(image_bytes, np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+    if image is None:
+        raise ValueError("Image decoding failed. Invalid image data.")
 
     # Convert to RGB (OpenCV loads images in BGR format)
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # Use pytesseract to extract text
     extracted_text = pytesseract.image_to_string(rgb_image)
+
 
     # Print the output
     print("Extracted Text:")
@@ -92,11 +98,11 @@ def ocr_image(image_bytes):
 
     return extracted_text
 
-@router.post("/fraud-detection")
+@router.post("/")
 async def fraud_detection(image: UploadFile = File(...)):
     content = await image.read()
-    # content = open('sample.jpg', 'rb').read()  # Uncomment for testing with a local file
     extracted_data = ocr_image(content)
+    payment_data = extracted_data
 
     # Load the pre-trained model and scaler
     model = tf.keras.models.load_model('fraud_model.h5')
@@ -107,8 +113,16 @@ async def fraud_detection(image: UploadFile = File(...)):
         'reference_number' not in extracted_data or 
         'dates' not in extracted_data):
         raise ValueError("Invalid payment data extracted from OCR.")
-
-    is_receipt_edited = 0  # or your logic here
+    
+    if (extracted_data['total_amount'] == payment_data['total_amount'] and
+        extracted_data['reference_number'] == payment_data['reference_number'] and
+        extracted_data['dates'] == payment_data['dates']):
+        is_receipt_edited = 0  # or your logic here
+    else:
+        # If the extracted data does not match the expected format, set is_receipt_edited to 1
+        # This indicates that the receipt may have been edited or tampered with
+        print("Receipt data does not match expected format. Marking as edited.")
+        is_receipt_edited = 1
 
     new_rental_df = pd.DataFrame([[extracted_data['total_amount'], 1, 2, is_receipt_edited, 0]],
         columns=['amount', 'booking_hour', 'lead_time_hours', 'is_receipt_edited', 'customer_history']

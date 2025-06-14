@@ -1,23 +1,26 @@
-FROM python:3.12-bullseye
+# Base image
+FROM python:3.12
 
-# Install tesseract
-RUN apt-get update && \
-    apt-get install -y tesseract-ocr && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Prevent prompts during install
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Create app directory
+# Install required OS packages
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    tesseract-ocr \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
-
-# Copy requirements and install
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app files
 COPY . .
 
-# Expose the port your FastAPI app runs on
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expose port (adjust if needed)
 EXPOSE 8000
 
-# Command to run your FastAPI app
+# Command to run the app (adjust your module path if needed)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -12,6 +12,7 @@ import pytesseract
 from PIL import Image
 import re
 from fastapi import APIRouter, File, UploadFile
+import joblib
 # import requests
 
 router = APIRouter()
@@ -91,73 +92,23 @@ def ocr_image(image_bytes):
 
     return extracted_text
 
-@router.post("/")
+@router.post("/fraud-detection")
 async def fraud_detection(image: UploadFile = File(...)):
-
-    # Load the dataset
-    df = pd.read_csv('rental_data.csv')
-
-
-    # Separate features and label
-    X = df.drop('is_fraud', axis=1)
-    y = df['is_fraud']
-
-    print(df['is_fraud'].value_counts())
-
-    # Normalize numerical features
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    # Train-test split
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-
-    model = tf.keras.models.Sequential([
-        tf.keras.layers.Dense(64, activation='relu', input_shape=(X_train.shape[1],)),
-        tf.keras.layers.Dense(32, activation='relu'),
-        tf.keras.layers.Dense(1, activation='sigmoid')  # Binary classification
-    ])
-
-    model.compile(optimizer='adam',
-                loss='binary_crossentropy',
-                metrics=['accuracy', tf.keras.metrics.AUC()])
-
-    # Train the model
-    class_weights = class_weight.compute_class_weight('balanced', classes=np.array([0, 1]), y=y_train)
-    history = model.fit(
-        X_train, y_train,
-        class_weight={0: class_weights[0], 1: class_weights[1]},
-        validation_split=0.2,
-        epochs=30,
-        batch_size=16
-    )
-
-    print(y_train.value_counts())
-
-
-    # Evaluate the model
-    # Evaluate on test data
-    loss, accuracy, auc = model.evaluate(X_test, y_test)
-    print(f"Test Accuracy: {accuracy:.2f}, AUC: {auc:.2f}")
-
-    # Predict on new rentals
     content = await image.read()
+    # content = open('sample.jpg', 'rb').read()  # Uncomment for testing with a local file
     extracted_data = ocr_image(content)
-    # payment_data = get_paymongo_payment_data()
-    payment_data = extracted_data  # Assuming we use the OCR data for prediction
 
-    if (not payment_data or 
-        'total_amount' not in payment_data or 
-        'reference_number' not in payment_data or 
-        'dates' not in payment_data
-    ):
+    # Load the pre-trained model and scaler
+    model = tf.keras.models.load_model('fraud_model.h5')
+    scaler = joblib.load('scaler.pkl')
+
+    if (not extracted_data or 
+        'total_amount' not in extracted_data or 
+        'reference_number' not in extracted_data or 
+        'dates' not in extracted_data):
         raise ValueError("Invalid payment data extracted from OCR.")
-    else:
-        if (extracted_data['total_amount'] == payment_data['total_amount'] or 
-            extracted_data['reference_number'] == payment_data['reference_number'] or 
-            extracted_data['dates'] == payment_data['dates']):
-            is_receipt_edited = 0
-        else:
-            is_receipt_edited = 1
+
+    is_receipt_edited = 0  # or your logic here
 
     new_rental_df = pd.DataFrame([[extracted_data['total_amount'], 1, 2, is_receipt_edited, 0]],
         columns=['amount', 'booking_hour', 'lead_time_hours', 'is_receipt_edited', 'customer_history']
@@ -165,10 +116,11 @@ async def fraud_detection(image: UploadFile = File(...)):
     new_rental_scaled = scaler.transform(new_rental_df)
     prediction = model.predict(new_rental_scaled)
 
-    print("Fraud Probability:", prediction[0][0])
-    if prediction[0][0] > 0.5:
-        return {"message": "Fraudulent transaction detected", "probability": prediction[0][0]}
-    else:
-        return {"message": "Transaction is likely legitimate", "probability": prediction[0][0]}
+    prob = float(prediction[0][0])
+# print(f"Prediction Probability: {prob}") // Uncomment for debugging
+    return {
+        "message": "Fraudulent transaction detected" if prob > 0.5 else "Transaction is likely legitimate",
+        "probability": prob
+    }
 
 

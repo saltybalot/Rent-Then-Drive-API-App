@@ -91,7 +91,7 @@ def ocr_image(image_bytes):
 
     return extracted_text
 
-@router.post("/fraud-detection")
+@router.post("/")
 async def fraud_detection(image: UploadFile = File(...)):
 
     # Load the dataset

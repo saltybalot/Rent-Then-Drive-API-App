@@ -11,8 +11,9 @@ import cv2
 import pytesseract
 from PIL import Image
 import re
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, UploadFile, Form
 import joblib
+from datetime import datetime
 # import requests
 
 router = APIRouter()
@@ -99,7 +100,13 @@ def ocr_image(image_bytes):
     return extracted_text
 
 @router.post("/")
-async def fraud_detection(image: UploadFile = File(...)):
+async def fraud_detection(
+    image: UploadFile = File(...),
+    booking_creation: str = Form(...),
+    checking_time: str = Form(...),
+    customer_history: str = Form(...),
+    payment_time: str = Form(...)):
+
     content = await image.read()
     extracted_data = ocr_image(content)
     payment_data = extracted_data
@@ -123,8 +130,15 @@ async def fraud_detection(image: UploadFile = File(...)):
         # This indicates that the receipt may have been edited or tampered with
         print("Receipt data does not match expected format. Marking as edited.")
         is_receipt_edited = 1
+    
+    # Parse datetime strings (assumed format: MM/DD/YYYY HH:MM AM/PM)
+    booking_dt = datetime.strptime(booking_creation, "%m/%d/%Y %I:%M %p")
+    checkin_dt = datetime.strptime(checking_time, "%m/%d/%Y %I:%M %p")
+    payment_dt = datetime.strptime(payment_time, "%m/%d/%Y %I:%M %p")
+    booking_hour = booking_dt.hour  # 0–23
+    lead_time_hours = max(0, int((checkin_dt - booking_dt).total_seconds() / 3600))  # rounded down
 
-    new_rental_df = pd.DataFrame([[extracted_data['total_amount'], 1, 2, is_receipt_edited, 0]],
+    new_rental_df = pd.DataFrame([[extracted_data['total_amount'], booking_hour, lead_time_hours, is_receipt_edited, customer_history]],
         columns=['amount', 'booking_hour', 'lead_time_hours', 'is_receipt_edited', 'customer_history']
     )
     new_rental_scaled = scaler.transform(new_rental_df)
@@ -133,6 +147,8 @@ async def fraud_detection(image: UploadFile = File(...)):
     prob = float(prediction[0][0])
 # print(f"Prediction Probability: {prob}") // Uncomment for debugging
     return {
+        "extracted_data": extracted_data,
+        "is_receipt_edited": is_receipt_edited,
         "message": "Fraudulent transaction detected" if prob > 0.5 else "Transaction is likely legitimate",
         "probability": prob
     }

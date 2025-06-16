@@ -132,7 +132,7 @@ async def fraud_detection(
         print("Receipt data does not match expected format. Marking as edited.")
         is_receipt_edited = 1
 
-    if (is_receipt_edited == 1):
+    if (is_receipt_edited == 0):
         ocr_status = "Pass"
     else:
         ocr_status = "Mismatch"

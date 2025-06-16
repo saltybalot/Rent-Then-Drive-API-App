@@ -111,6 +111,7 @@ async def fraud_detection(
     extracted_data = ocr_image(content)
     payment_data = extracted_data
 
+
     # Load the pre-trained model and scaler
     model = tf.keras.models.load_model('fraud_model.h5')
     scaler = joblib.load('scaler.pkl')
@@ -130,6 +131,11 @@ async def fraud_detection(
         # This indicates that the receipt may have been edited or tampered with
         print("Receipt data does not match expected format. Marking as edited.")
         is_receipt_edited = 1
+
+    if (is_receipt_edited == 1):
+        ocr_status = "Pass"
+    else:
+        ocr_status = "Mismatch"
     
     # Convert to datetime objects (UTC)
     fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -152,7 +158,8 @@ async def fraud_detection(
         "extracted_data": extracted_data,
         "is_receipt_edited": is_receipt_edited,
         "message": "Fraudulent transaction detected" if prob > 0.5 else "Transaction is likely legitimate",
-        "probability": prob
+        "probability": prob,
+        "ocr_status": ocr_status
     }
 
 

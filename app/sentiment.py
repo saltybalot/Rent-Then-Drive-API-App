@@ -38,4 +38,5 @@ async def analyze_sentiment(request: Request):
     return {
         "text": text,
         "compound": compound,
+        "sentiment": sentiment,
     }

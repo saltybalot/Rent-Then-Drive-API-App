@@ -131,10 +131,12 @@ async def fraud_detection(
         print("Receipt data does not match expected format. Marking as edited.")
         is_receipt_edited = 1
     
-    # Parse datetime strings (assumed format: MM/DD/YYYY HH:MM AM/PM)
-    booking_dt = datetime.strptime(booking_creation, "%m/%d/%Y %I:%M %p")
-    checkin_dt = datetime.strptime(checking_time, "%m/%d/%Y %I:%M %p")
-    payment_dt = datetime.strptime(payment_time, "%m/%d/%Y %I:%M %p")
+    # Convert to datetime objects (UTC)
+    fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+    booking_dt = datetime.strptime(booking_creation, fmt)
+    checkin_dt = datetime.strptime(checking_time, fmt)
+    payment_dt = datetime.strptime(payment_time, fmt)
+    
     booking_hour = booking_dt.hour  # 0–23
     lead_time_hours = max(0, int((checkin_dt - booking_dt).total_seconds() / 3600))  # rounded down
 

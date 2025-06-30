@@ -138,7 +138,8 @@ async def fraud_detection(
         ocr_status = "Mismatch"
     
     # Convert to datetime objects (UTC)
-    fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+    # fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+    fmt = "%m/%d/%Y %I:%M %p"
     booking_dt = datetime.strptime(booking_creation, fmt)
     checkin_dt = datetime.strptime(checking_time, fmt)
     payment_dt = datetime.strptime(payment_time, fmt)

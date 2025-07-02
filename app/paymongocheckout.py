@@ -1,0 +1,60 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import requests
+import base64
+import os
+from fastapi import APIRouter
+
+router = APIRouter()
+
+PAYMONGO_SECRET_KEY = os.environ.get("PAYMONGO_SECRET_KEY")
+if not PAYMONGO_SECRET_KEY:
+    raise RuntimeError("PAYMONGO_SECRET_KEY environment variable not set")
+
+
+class CheckoutRequest(BaseModel):
+    amount: int
+    email: str
+    description: str
+
+@router.post("/")
+def create_checkout_session(data: CheckoutRequest):
+    url = "https://api.paymongo.com/v1/checkout_sessions"
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "authorization": "Basic " + base64.b64encode(f"{PAYMONGO_SECRET_KEY}:".encode()).decode()
+    }
+    payload = {
+        "data": {
+            "attributes": {
+                "billing": {
+                    "email": data.email
+                },
+                "line_items": [
+                    {
+                        "amount": data.amount,
+                        "currency": "PHP",
+                        "name": data.description,
+                        "quantity": 1
+                    }
+                ],
+                "payment_method_types": ["card"],
+                "description": data.description,
+                "send_email_receipt": True,
+                "show_description": True,
+                "show_line_items": True,
+                "reference_number": "RTD12345"
+            }
+        }
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    if response.status_code not in (200, 201):
+        raise HTTPException(status_code=400, detail=response.json())
+    
+    checkout_data = response.json()
+    checkout_url = checkout_data["data"]["attributes"]["checkout_url"]
+    print(response.status_code)
+    print(response.text)
+    return {"checkout_url": checkout_url}

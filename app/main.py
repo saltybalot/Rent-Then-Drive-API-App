@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from . import scheduler, sentiment, fraud, paymongocheckout, updatebookingstatus
+from . import scheduler, sentiment, fraud, paymongocheckout
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi import Request, BackgroundTasks
 
@@ -10,7 +10,6 @@ app.include_router(scheduler.router, prefix="/api/scheduler")
 app.include_router(sentiment.router, prefix="/api/sentiment")
 app.include_router(fraud.router, prefix="/api/fraud")
 app.include_router(paymongocheckout.router, prefix="/api/paymongocheckout")
-app.include_router(updatebookingstatus.router, prefix="/api/updatebookingstatus")
 
 # Mount the static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")

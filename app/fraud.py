@@ -38,15 +38,35 @@ except Exception as e:
 
 try:
     firebase_creds_path = os.getenv('FIREBASE_CREDENTIALS_PATH')
+    firebase_creds_json = os.getenv('FIREBASE_CREDENTIALS_JSON')
     
-    # If not set in environment, try default path in project root
-    if not firebase_creds_path:
-        firebase_creds_path = 'r-t-d-2025-firebase-adminsdk-fbsvc-d3b3fc7d37.json'
+    cred = None
     
-    if firebase_creds_path and os.path.exists(firebase_creds_path):
-        print(f"Loading Firebase credentials from: {firebase_creds_path}")
-        cred = credentials.Certificate(firebase_creds_path)
+    # Try JSON string first (for Render deployment)
+    if firebase_creds_json:
+        try:
+            import json
+            cred_dict = json.loads(firebase_creds_json)
+            cred = credentials.Certificate(cred_dict)
+            print("Loaded Firebase credentials from JSON environment variable")
+        except Exception as e:
+            print(f"Failed to parse Firebase JSON: {e}")
+    
+    # Try file path if JSON not available
+    if not cred:
+        # If not set in environment, try default path in project root
+        if not firebase_creds_path:
+            firebase_creds_path = 'r-t-d-2025-firebase-adminsdk-fbsvc-d3b3fc7d37.json'
         
+        if firebase_creds_path and os.path.exists(firebase_creds_path):
+            print(f"Loading Firebase credentials from: {firebase_creds_path}")
+            cred = credentials.Certificate(firebase_creds_path)
+        else:
+            print(f"Firebase credentials not found at: {firebase_creds_path}")
+            print("Running without Firebase functionality.")
+    
+    # Initialize Firebase if credentials are available
+    if cred:
         # Check if Firebase is already initialized
         try:
             firebase_admin.get_app()
@@ -62,8 +82,9 @@ try:
         db = firestore.client()
         print("Firestore client created successfully")
     else:
-        print(f"Firebase credentials not found at: {firebase_creds_path}")
+        print("No Firebase credentials available")
         print("Running without Firebase functionality.")
+        
 except Exception as e:
     print(f"Firebase initialization failed: {e}")
     print("Running without Firebase functionality.") 

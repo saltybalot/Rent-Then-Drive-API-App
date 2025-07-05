@@ -19,8 +19,11 @@ COPY . .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Set default port
+ENV PORT=8000
+
 # Expose port (adjust if needed)
 EXPOSE $PORT
 
 # Command to run the app (adjust your module path if needed)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "$PORT"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT

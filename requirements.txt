@@ -10,3 +10,8 @@ Pillow
 ortools
 nltk
 python-multipart
+requests
+imagehash
+firebase-admin
+google-cloud-firestore
+python-dotenv

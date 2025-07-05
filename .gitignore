@@ -1,1 +1,32 @@
 app/train model.py
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Firebase credentials
+firebase-credentials.json
+*-credentials.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+r-t-d-2025-firebase-adminsdk-fbsvc-d3b3fc7d37.json
+random gcash tansaction generator.py

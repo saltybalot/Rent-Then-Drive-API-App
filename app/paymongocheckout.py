@@ -3,13 +3,16 @@ from pydantic import BaseModel
 import requests
 import base64
 import os
+import uuid
+from datetime import datetime
 from fastapi import APIRouter
 
 router = APIRouter()
 
 PAYMONGO_SECRET_KEY = os.environ.get("PAYMONGO_SECRET_KEY")
 if not PAYMONGO_SECRET_KEY:
-    raise RuntimeError("PAYMONGO_SECRET_KEY environment variable not set")
+    print("Warning: PAYMONGO_SECRET_KEY environment variable not set. PayMongo functionality will be disabled.")
+    PAYMONGO_SECRET_KEY = None
 
 
 class CheckoutRequest(BaseModel):
@@ -19,6 +22,17 @@ class CheckoutRequest(BaseModel):
 
 @router.post("/")
 def create_checkout_session(data: CheckoutRequest):
+    if not PAYMONGO_SECRET_KEY:
+        raise HTTPException(
+            status_code=503, 
+            detail="PayMongo service is not configured. Please set PAYMONGO_SECRET_KEY environment variable."
+        )
+    
+    # Generate unique reference number
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    unique_id = str(uuid.uuid4())[:8]
+    reference_number = f"RTD{timestamp}{unique_id}"
+    
     url = "https://api.paymongo.com/v1/checkout_sessions"
     headers = {
         "accept": "application/json",
@@ -44,7 +58,7 @@ def create_checkout_session(data: CheckoutRequest):
                 "send_email_receipt": True,
                 "show_description": True,
                 "show_line_items": True,
-                "reference_number": "RTD12345"
+                "reference_number": reference_number
             }
         }
     }

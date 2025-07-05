@@ -148,10 +148,10 @@ def calculate_business_rule_score(booking_hour, lead_time_hours, customer_histor
 
 def ocr_image(image_bytes):
     # Path to tesseract executable
-    # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract" # Render on Linux
+    pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract" # Render on Linux
     
     # Path to tesseract executable (Only needed on Windows)
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe' # Render on Windows
+    # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe' # Render on Windows
 
     # Decode image bytes to numpy array for OpenCV
     image_array = np.frombuffer(image_bytes, np.uint8)

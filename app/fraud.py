@@ -6,7 +6,13 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.utils import class_weight
-import tensorflow as tf
+try:
+    import tensorflow as tf
+    import keras
+except ImportError:
+    print("TensorFlow not available, using fallback mode")
+    tf = None
+    keras = None
 import numpy as np
 import cv2
 import pytesseract
@@ -29,8 +35,12 @@ db = None
 # Load ML models once at startup
 try:
     scaler = joblib.load('scaler.pkl')
-    model = tf.keras.models.load_model('fraud_model.h5')
-    print("ML models loaded successfully")
+    if tf is not None and keras is not None:
+        model = keras.models.load_model('fraud_model.h5')
+        print("ML models loaded successfully")
+    else:
+        model = None
+        print("TensorFlow not available, ML model not loaded")
 except Exception as e:
     print(f"Failed to load ML models: {e}")
     scaler = None
@@ -146,6 +156,38 @@ def calculate_business_rule_score(booking_hour, lead_time_hours, customer_histor
     
     return min(risk_score, 1.0)  # Cap at 1.0
 
+def preprocess_image_for_ocr(image):
+    """
+    Apply fast and effective preprocessing techniques for OCR
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # Resize if image is too small (faster processing)
+    height, width = gray.shape
+    if width < 600:
+        scale_factor = 600 / width
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+        gray = cv2.resize(gray, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    
+    # Apply only the most effective preprocessing techniques
+    preprocessed_images = []
+    
+    # 1. Original grayscale (baseline)
+    preprocessed_images.append(("original", gray))
+    
+    # 2. Adaptive thresholding (most effective for receipts)
+    adaptive_thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    preprocessed_images.append(("adaptive_thresh", adaptive_thresh))
+    
+    # 3. Contrast enhancement (good for low contrast images)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    enhanced = clahe.apply(gray)
+    preprocessed_images.append(("enhanced", enhanced))
+    
+    return preprocessed_images
+
 def ocr_image(image_bytes):
     # Path to tesseract executable
     pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract" # Render on Linux
@@ -162,11 +204,85 @@ def ocr_image(image_bytes):
 
     # Convert to RGB for pytesseract
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-    # OCR extract
-    extracted_text_raw = pytesseract.image_to_string(rgb_image)
-    print("Extracted Text:")
+    
+    # Preprocess the image with multiple techniques
+    preprocessed_images = preprocess_image_for_ocr(image)
+    
+    # Try only the most effective OCR configurations
+    ocr_configs = [
+        '--oem 3 --psm 6',  # LSTM OCR Engine + Uniform block of text (fastest and most accurate)
+        '--oem 3 --psm 8',  # LSTM OCR Engine + Single word (good for sparse text)
+    ]
+    
+    best_text = ""
+    best_confidence = 0
+    best_config = ""
+    best_preprocessing = ""
+    
+    print("Trying OCR with different preprocessing...")
+    
+    # Try each preprocessing technique with the best OCR config
+    for preprocess_name, preprocessed_img in preprocessed_images:
+        try:
+            # Use the most effective config for receipts
+            config = '--oem 3 --psm 6'
+            
+            # Extract text
+            text = pytesseract.image_to_string(preprocessed_img, config=config)
+            
+            print(f"Preprocessing: {preprocess_name}")
+            print(f"Text: {text.strip()}")
+            
+            # Keep the first result with meaningful text
+            if text.strip() and len(text.strip()) > 10:  # At least 10 characters
+                best_text = text
+                best_preprocessing = preprocess_name
+                best_config = config
+                break
+                
+        except Exception as e:
+            print(f"Error with preprocessing {preprocess_name}: {e}")
+            continue
+    
+    # If no good results, try the original image
+    if not best_text.strip():
+        print("Falling back to original image...")
+        best_text = pytesseract.image_to_string(rgb_image, config='--oem 3 --psm 6')
+        best_preprocessing = "original"
+        best_config = "--oem 3 --psm 6"
+    
+    print(f"\nBest OCR Result:")
+    print(f"Preprocessing: {best_preprocessing}")
+    print(f"Config: {best_config}")
+    print(f"Extracted Text:")
+    print(best_text)
+    
+    extracted_text_raw = best_text
+    
+    # Simple text cleaning
+    def clean_ocr_text(text):
+        """Simple text cleaning for OCR results"""
+        if not text:
+            return ""
+        
+        # Remove excessive whitespace and normalize
+        lines = text.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if line:  # Keep non-empty lines
+                cleaned_lines.append(line)
+        
+        return '\n'.join(cleaned_lines)
+    
+    # Clean the extracted text
+    extracted_text_raw = clean_ocr_text(extracted_text_raw)
+    print(f"Cleaned Text:")
     print(extracted_text_raw)
+    
+    # Optional: Save debug image (uncomment if needed)
+    # cv2.imwrite(f"debug_{best_preprocessing}.png", preprocessed_images[0][1])
 
     # Initialize variables
     total_amount = "Not found"
@@ -181,6 +297,7 @@ def ocr_image(image_bytes):
         # Look for patterns like "P 1,000.00" or "Payment amount P 1,000.00"
         paymongo_amount_patterns = [
             r'Payment amount\s*P?\s*([\d,]+\.?\d*)',
+            r'Total\s+P\s*([\d,]+\.?\d*)',  # "Total P 10.00" format
             r'P\s*([\d,]+\.?\d*)',
             r'Total:\s*P?\s*([\d,]+\.?\d*)',
             r'([\d,]+\.?\d*)\s*/ unit'
@@ -190,6 +307,7 @@ def ocr_image(image_bytes):
             amount_match = re.search(pattern, extracted_text_raw, re.IGNORECASE)
             if amount_match:
                 total_amount = amount_match.group(1).replace(",", "")
+                print(f"DEBUG: PayMongo amount pattern matched - Extracted amount: {total_amount}")
                 break
         
         # Extract Reference Number (PayMongo format)
@@ -245,13 +363,36 @@ def ocr_image(image_bytes):
         # Try GCash format (original logic)
         print("Detected GCash receipt format")
         
-        # Extract Total Amount Sent (GCash format)
-        total_amount_match = re.search(r'Total Amount Sent\s+P?[\s]?(\d[\d\s.,]*)', extracted_text_raw, re.IGNORECASE)
-        total_amount = total_amount_match.group(1).replace(" ", "") if total_amount_match else "Not found"
+        # Extract Total Amount (GCash format) - Updated patterns
+        gcash_amount_patterns = [
+            r'Total Amount Sent\s+P?[\s]?(\d[\d\s.,]*)',  # Original pattern
+            r'Total\s+P\s*(\d[\d\s.,]*)',  # "Total P 10.00" format
+            r'Total\s*(\d[\d\s.,]*)',  # "Total 10.00" format
+            r'P\s*(\d[\d\s.,]*)',  # "P 10.00" format
+        ]
+        
+        total_amount = "Not found"
+        for pattern in gcash_amount_patterns:
+            amount_match = re.search(pattern, extracted_text_raw, re.IGNORECASE)
+            if amount_match:
+                total_amount = amount_match.group(1).replace(" ", "").replace(",", "")
+                print(f"DEBUG: Amount pattern matched - Extracted amount: {total_amount}")
+                break
 
-        # Extract Reference Number (GCash format)
-        ref_no_match = re.search(r'Ref\s*No\.\s*(\d+)', extracted_text_raw, re.IGNORECASE)
-        ref_no = ref_no_match.group(1) if ref_no_match else "Not found"
+        # Extract Reference Number (GCash format) - Updated patterns
+        gcash_ref_patterns = [
+            r'Ref\s*No\.\s*(\d+)',  # Original pattern
+            r'(\d{8,})',  # Any 8+ digit number (common for reference numbers)
+            r'Reference\s*(\d+)',  # "Reference 893641967" format
+        ]
+        
+        ref_no = "Not found"
+        for pattern in gcash_ref_patterns:
+            ref_match = re.search(pattern, extracted_text_raw, re.IGNORECASE)
+            if ref_match:
+                ref_no = ref_match.group(1)
+                print(f"DEBUG: Reference pattern matched - Extracted reference: {ref_no}")
+                break
 
         # Extract Date (GCash format)
         date_match = re.search(r'([A-Za-z]+ \d{1,2}, \d{4} \d{1,2}:\d{2} [AP]M)', extracted_text_raw)
@@ -262,6 +403,37 @@ def ocr_image(image_bytes):
     pil_image = Image.fromarray(rgb_image)
     perceptual_hash = str(imagehash.phash(pil_image))
     print("Perceptual hash:", perceptual_hash)
+
+    # If no amount or reference found, try alternative patterns as fallback
+    if total_amount == "Not found" or ref_no == "Not found":
+        print("DEBUG: Primary extraction failed, trying fallback patterns...")
+        
+        # Try to find any amount pattern
+        if total_amount == "Not found":
+            fallback_amount_patterns = [
+                r'(\d+\.?\d*)',  # Any decimal number
+                r'P\s*(\d+\.?\d*)',  # P followed by number
+                r'Total\s*(\d+\.?\d*)',  # Total followed by number
+            ]
+            for pattern in fallback_amount_patterns:
+                amount_match = re.search(pattern, extracted_text_raw, re.IGNORECASE)
+                if amount_match:
+                    total_amount = amount_match.group(1)
+                    print(f"DEBUG: Fallback amount pattern matched - Extracted amount: {total_amount}")
+                    break
+        
+        # Try to find any reference number pattern
+        if ref_no == "Not found":
+            fallback_ref_patterns = [
+                r'(\d{8,})',  # Any 8+ digit number
+                r'(\d{6,})',  # Any 6+ digit number as last resort
+            ]
+            for pattern in fallback_ref_patterns:
+                ref_match = re.search(pattern, extracted_text_raw, re.IGNORECASE)
+                if ref_match:
+                    ref_no = ref_match.group(1)
+                    print(f"DEBUG: Fallback reference pattern matched - Extracted reference: {ref_no}")
+                    break
 
     # Return all data together
     return {

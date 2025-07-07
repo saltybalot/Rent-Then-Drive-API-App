@@ -16,7 +16,7 @@ if not PAYMONGO_SECRET_KEY:
 
 
 class CheckoutRequest(BaseModel):
-    amount: int
+    amount: float
     email: str
     description: str
 
@@ -33,6 +33,9 @@ def create_checkout_session(data: CheckoutRequest):
     unique_id = str(uuid.uuid4())[:8]
     reference_number = f"RTD{timestamp}{unique_id}"
     
+    # Multiply amount by 100 to convert to cents and ensure it's an integer
+    amount_in_cents = int(round(data.amount * 100))
+    
     url = "https://api.paymongo.com/v1/checkout_sessions"
     headers = {
         "accept": "application/json",
@@ -47,7 +50,7 @@ def create_checkout_session(data: CheckoutRequest):
                 },
                 "line_items": [
                     {
-                        "amount": data.amount,
+                        "amount": amount_in_cents,
                         "currency": "PHP",
                         "name": data.description,
                         "quantity": 1

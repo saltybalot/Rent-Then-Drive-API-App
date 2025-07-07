@@ -296,10 +296,10 @@ def ocr_image(image_bytes):
         # Extract Payment Amount (PayMongo format)
         # Look for patterns like "P 1,000.00" or "Payment amount P 1,000.00"
         paymongo_amount_patterns = [
-            r'Payment amount\s*P?\s*([\d,]+\.?\d*)',
-            r'Total\s+P\s*([\d,]+\.?\d*)',  # "Total P 10.00" format
-            r'P\s*([\d,]+\.?\d*)',
-            r'Total:\s*P?\s*([\d,]+\.?\d*)',
+            r'Payment amount\s*[^\d\n]?\s*([\d,]+\.?\d*)',  # Allow any non-digit (like '?', 'P', etc.) before amount
+            r'Total\s+[^\d\n]?\s*([\d,]+\.?\d*)',  # Allow any non-digit before amount
+            r'[^\d\n]?\s*([\d,]+\.?\d*)',  # General: any non-digit before amount
+            r'Total:\s*[^\d\n]?\s*([\d,]+\.?\d*)',
             r'([\d,]+\.?\d*)\s*/ unit'
         ]
         

@@ -74,4 +74,4 @@ def create_checkout_session(data: CheckoutRequest):
     checkout_url = checkout_data["data"]["attributes"]["checkout_url"]
     print(response.status_code)
     print(response.text)
-    return {"checkout_url": checkout_url}
+    return {"checkout_url": checkout_url, "reference_number": reference_number}

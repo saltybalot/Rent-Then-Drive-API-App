@@ -32,6 +32,9 @@ def create_checkout_session(data: CheckoutRequest):
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     unique_id = str(uuid.uuid4())[:8]
     reference_number = f"RTD{timestamp}{unique_id}"
+
+    # Compose description to always include the reference number
+    description_with_ref = f"{data.description} | BookingRef: {reference_number}"
     
     # Multiply amount by 100 to convert to cents and ensure it's an integer
     amount_in_cents = int(round(data.amount * 100))
@@ -57,7 +60,7 @@ def create_checkout_session(data: CheckoutRequest):
                     }
                 ],
                 "payment_method_types": ["card"],
-                "description": data.description,
+                "description": description_with_ref,
                 "send_email_receipt": True,
                 "show_description": True,
                 "show_line_items": True,

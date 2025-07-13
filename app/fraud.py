@@ -617,6 +617,7 @@ async def save_payment_transaction(
             "noHistory": int(customer_history) == 0,
             "receiptEdited": is_receipt_edited == 1
         },
+        "payment_doc_id": payment_doc_id if db is not None else None,
         "message": "Fraudulent transaction detected" if is_fraud else "Transaction likely legitimate"
     }
 

@@ -332,13 +332,9 @@ def ocr_image(image_bytes):
         else:
             print("DEBUG: No reference pattern matched")
         
-        # If no reference number found for PayMongo, generate a placeholder
-        print(f"DEBUG: Current ref_no value: '{ref_no}'")
+        # Do not generate placeholder here; let the endpoint handle it
         if ref_no == "Not found":
-            import time
-            timestamp = int(time.time())
-            ref_no = f"PAYMONGO_{timestamp}"
-            print(f"DEBUG: Generated placeholder reference number: {ref_no}")
+            print("DEBUG: No reference number found in OCR for PayMongo receipt.")
         else:
             print(f"DEBUG: Using extracted reference number: {ref_no}")
         
@@ -454,7 +450,8 @@ async def save_payment_transaction(
     payment_status: str = Form(...),
     booking_creation: str = Form(...),
     checking_time: str = Form(...),
-    customer_history: str = Form(...)
+    customer_history: str = Form(...),
+    paymongo_ref_fallback: str = Form(None)  # Optional fallback reference for PayMongo
 ):
     content = await image.read()
     extracted_data = ocr_image(content)
@@ -463,6 +460,29 @@ async def save_payment_transaction(
     ref_no = extracted_data.get("reference_number", "Not found")
     img_hash = extracted_data.get("perceptual_hash", "Not found")
     ocr_date = extracted_data.get("dates", "Not found")
+
+    # Debug: Print payment_method and paymongo_ref_fallback before fallback logic
+    print(f"DEBUG: payment_method = '{payment_method}'")
+    print(f"DEBUG: paymongo_ref_fallback = '{paymongo_ref_fallback}'")
+
+    # Debug: Print all relevant values before fallback logic
+    print(f"DEBUG: BEFORE FALLBACK - ref_no = '{ref_no}', payment_method = '{payment_method}', paymongo_ref_fallback = '{paymongo_ref_fallback}'")
+
+    # Fallback: If OCR failed to extract reference number and payment method is PayMongo, use provided fallback
+    if (ref_no == "Not found" or not ref_no.strip()) and payment_method.lower() == "paymongo" and paymongo_ref_fallback and paymongo_ref_fallback.strip():
+        print("DEBUG: Using paymongo_ref_fallback as reference number.")
+        ref_no = paymongo_ref_fallback.strip()
+    else:
+        print("DEBUG: Fallback not used. Condition not met.")
+
+    # If still not found, generate PAYMONGO_{timestamp} placeholder
+    if (ref_no == "Not found" or not ref_no.strip()) and payment_method.lower() == "paymongo":
+        import time
+        timestamp = int(time.time())
+        print("DEBUG: Generating PAYMONGO_{timestamp} placeholder.")
+        ref_no = f"PAYMONGO_{timestamp}"
+    else:
+        print(f"DEBUG: Final ref_no after fallback/placeholder logic: '{ref_no}'")
 
     # Check Firestore for duplicate ref_no or perceptual_hash across all payments
     is_duplicate_ref = False

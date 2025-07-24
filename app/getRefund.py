@@ -14,7 +14,7 @@ BASE64_AUTH = base64.b64encode(f"{PAYMONGO_SECRET_KEY}:".encode()).decode()
 
 class RefundRequest(BaseModel):
     booking_ref: str
-    amount: int
+    amount: float  # Accept float (peso) from user
     reason: str = "requested_by_customer"
 
 @router.post("/")
@@ -60,18 +60,21 @@ def refund(refund_req: RefundRequest):
 
     payment_id = payment["id"]
 
+    # Convert peso float to centavos int
+    amount_in_cents = int(round(refund_req.amount * 100))
+
     # 2. Issue refund with idempotency key
     refund_payload = {
         "data": {
             "attributes": {
-                "amount": refund_req.amount,
+                "amount": amount_in_cents,
                 "payment_id": payment_id,
                 "reason": refund_req.reason
             }
         }
     }
     # Generate SHA256 idempotency key
-    idempotency_string = f"{refund_req.booking_ref}:{refund_req.amount}"
+    idempotency_string = f"{refund_req.booking_ref}:{amount_in_cents}"
     idempotency_key = hashlib.sha256(idempotency_string.encode()).hexdigest()
     refund_headers = {
         **headers,

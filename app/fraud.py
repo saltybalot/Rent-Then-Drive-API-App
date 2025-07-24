@@ -613,7 +613,7 @@ async def save_payment_transaction(
             "ocr_date_raw": ocr_date,  # Store original OCR date text for reference
             "paymentMethod": payment_method,
             "amount": amount_numeric,  # Use numeric amount
-            "bookingRef": db.document(f"bookings/{booking_doc_id}"),  # doc reference
+            "bookingRef": db.document(f"Bookings/{booking_doc_id}"),  # doc reference
             "imageHash": img_hash,
             "fraudScore": fraud_score,
             "isFraud": is_fraud,
